@@ -1,0 +1,30 @@
+version: 3.7
+
+services:
+
+    db:
+        image: "postgres:${POSTGRES_VERSION}"
+        restart: always
+        env_file: ./.env
+        container_name: postgres
+        tty: true
+        entrypoint: ./postgres/entrypoint.sh
+
+        environment:
+            POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+
+        volumes:
+            - postgres:/var/lib/postgresql/data
+
+        ports:
+            - "${POSTGRES_PORT}:5432"
+            
+        networks:
+            - app-network
+
+volumes:
+    postgres:
+
+networks:
+    env-network:
+        driver: bridge
