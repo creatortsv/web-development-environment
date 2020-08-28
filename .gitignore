@@ -1,0 +1,3 @@
+!/node/entrypoint.sh
+!/php/entrypoint.sh
+!/postgres/entrypoint.sh
