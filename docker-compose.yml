@@ -6,7 +6,7 @@ services:
         image: "postgres:${POSTGRES_VERSION}"
         restart: always
         env_file: ./.env
-        container_name: postgres
+        container_name: "postgres@${POSTGRES_VERSION}"
         tty: true
         entrypoint: ./postgres/entrypoint.sh
 
@@ -14,7 +14,11 @@ services:
             POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
 
         volumes:
-            - postgres:/var/lib/postgresql/data
+            - type: volume
+                source: postgres
+                target: /var/lib/postgresql/data
+                volume:
+                    nocopy: true
 
         ports:
             - "${POSTGRES_PORT}:5432"
