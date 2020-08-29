@@ -36,6 +36,9 @@ services:
         env_file: ./.env
         working_dir: /home/node
 
+        volumes:
+            - ~/ReactProjects/:/home/node/
+
         environment:
             NODE_ENV: ${NODE_ENV}
 
@@ -101,9 +104,39 @@ services:
         networks:
             - env-network
 
+    elastic:
+        image: "docker.elastic.co/elasticsearch/elasticsearch:${ELASTICSEARCH_VERSION}"
+        container_name: elastic-${ELASTICSEARCH_VERSION}
+        restart: unless-stopped
+        env_file: ./.env
+
+        environment:
+            - node.name=elastic
+            - cluster.initial_master_nodes=elastic
+            - MAX_MAP_COUNT=262144
+
+        ulimits:
+            memlock:
+                soft: -1
+                hard: -1
+        
+        volumes:
+            - type: volume
+              source: elastic_data
+              target: /usr/share/elasticsearch/data
+              volume:
+                no_copy: true
+
+        ports:
+            - ${ELASTICSEARCH_PORT}:9200
+
+        networks:
+            - env-network
+
 volumes:
     postgres_data:
     rabbitmq_data:
+    elastic_data:
 
 networks:
     env-network:
