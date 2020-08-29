@@ -1,4 +1,4 @@
-version: 3.7
+version: "3.7"
 
 services:
 
@@ -6,37 +6,35 @@ services:
         image: "postgres:${POSTGRES_VERSION}"
         restart: unless-stopped
         env_file: ./.env
-        container_name: "postgres@${POSTGRES_VERSION}"
+        container_name: "postgres-${POSTGRES_VERSION}"
         tty: true
-        # TODO: entrypoint: ./postgres/entrypoint.sh
 
         environment:
             POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
 
         volumes:
+            # - ./postgres/entrypoint.sh:/docker-entrypoint-initdb.d/entrypoint.sh
             - type: volume
-                source: postgres_data
-                target: /var/lib/postgresql/data
-                volume:
-                    nocopy: true
+              source: postgres_data
+              target: /var/lib/postgresql/data
+              volume:
+                nocopy: true
 
         ports:
             - "${POSTGRES_PORT}:5432"
             
         networks:
-            - app-network
+            - env-network
     
     node:
         image: "node:${NODE_VERSION}"
-        container_name: "node@${NODE_VERSION}"
+        container_name: "node-${NODE_VERSION}"
         restart: unless-stopped
         user: "root"
         tty: true
+        stdin_open: true
         env_file: ./.env
-
-        # TODO: working_dir: /home/node
-        # TODO: entrypoint: ./node/entrypoint.sh
-        # TODO: volumes: /path/to/project:/home/node/project [...]
+        working_dir: /home/node
 
         environment:
             NODE_ENV: ${NODE_ENV}
@@ -45,23 +43,29 @@ services:
             - "${NODE_PORT}:8080"
 
         networks:
-            - app-network
+            - env-network
 
         depends_on:
             - db
             - php
 
     php:
-        image: "php:${PHP_VERSION}-fpm"
-        container_name: "php@${PHP_VERSION}"
+        image: "php-${PHP_VERSION}-extended"
+        container_name: "php-${PHP_VERSION}"
         restart: unless-stopped
         user: "root"
+        stdin_open: true
         tty: true
         env_file: ./.env
+        working_dir: /var/web
 
-        # TODO: working_dir: /var/web
-        # TODO: entrypoint: ./php/entrypoint.sh
-        # TODO: volumes: /path/to/project:/var/web/project [...]
+        build:
+            context: ./php
+            args:
+                PHP_VERSION: ${PHP_VERSION}
+
+        volumes:
+            - ~/PHPProjects/packages/:/var/web/packages/
 
         ports:
             - "${PHP_PORT}:8000"
@@ -71,19 +75,19 @@ services:
             - rabbit
 
         networks:
-            - app-network
+            - env-network
 
     rabbit:
         image: "rabbitmq:${RABBITMQ_VERSION}"
-        container_name: "rabbitmq@${RABBITMQ_VERSION}"
+        container_name: "rabbitmq-${RABBITMQ_VERSION}"
         restart: unless-stopped
         env_file: ./.env
         volumes:
             - type: volume
-                source: rabbitmq_data
-                target: /var/lib/rabbitmq/
-                volume:
-                    nocopy: true
+              source: rabbitmq_data
+              target: /var/lib/rabbitmq/
+              volume:
+                nocopy: true
 
         environment:
             RABBITMQ_ERLANG_COOKIE: ${RABBITMQ_ERLANG_COOKIE}
@@ -93,6 +97,9 @@ services:
         ports:
             - "${RABBITMQ_PORT}:5672"
             - "${RABBITMQ_PORT_MANAGMENT}:15672"
+
+        networks:
+            - env-network
 
 volumes:
     postgres_data:
