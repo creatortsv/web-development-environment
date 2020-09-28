@@ -37,7 +37,8 @@ services:
         working_dir: /home/node
 
         volumes:
-            - ~/ReactProjects/:/home/node/
+            - ~/ReactProjects/:/home/node/react/
+            - ~/JSProjects/:/home/node/js/
 
         environment:
             NODE_ENV: ${NODE_ENV}
@@ -68,7 +69,8 @@ services:
                 PHP_VERSION: ${PHP_VERSION}
 
         volumes:
-            - ~/PHPProjects/packages/:/var/web/packages/
+            - ~/PHPProjects/:/var/web/php/
+            - ~/LaravelProjects/:/var/web/laravel/
 
         ports:
             - "${PHP_PORT}:8000"
@@ -125,7 +127,7 @@ services:
               source: elastic_data
               target: /usr/share/elasticsearch/data
               volume:
-                no_copy: true
+                nocopy: true
 
         ports:
             - ${ELASTICSEARCH_PORT}:9200

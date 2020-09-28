@@ -1,0 +1,5 @@
+#!/bin/bash
+set -a # automatically export all variables
+source ~/DockerProjects/web-development-environment/.env
+set +a
+docker exec -i php-"$PHP_VERSION" composer "$@"
