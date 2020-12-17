@@ -39,6 +39,7 @@ services:
         volumes:
             - ~/ReactProjects/:/home/node/react/
             - ~/JSProjects/:/home/node/js/
+            - ~/LaravelProjects/:/home/node/laravel/
 
         environment:
             NODE_ENV: ${NODE_ENV}
