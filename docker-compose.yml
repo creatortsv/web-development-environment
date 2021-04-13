@@ -66,6 +66,7 @@ services:
 
         build:
             context: ./php
+            dockerfile: Dockerfile-${PHP_VERSION}
             args:
                 PHP_VERSION: ${PHP_VERSION}
 
