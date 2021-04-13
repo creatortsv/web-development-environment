@@ -72,6 +72,7 @@ services:
         volumes:
             - ~/PHPProjects/:/var/web/php/
             - ~/LaravelProjects/:/var/web/laravel/
+            - ~/SymfonyProjects/:/var/web/symfony/
 
         ports:
             - "${PHP_PORT}:8000"
