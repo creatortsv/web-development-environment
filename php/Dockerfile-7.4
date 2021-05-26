@@ -24,15 +24,26 @@ RUN apt-get update -y && apt-get install -y \
     && docker-php-ext-install sockets pdo pdo_pgsql pgsql mbstring zip exif pcntl \
     && docker-php-ext-configure gd --with-freetype --with-jpeg \
     && docker-php-ext-configure ldap --with-libdir=lib/x86_64-linux-gnu/ \
-    && docker-php-ext-install gd ldap \
-    && pecl install xdebug \
-    && docker-php-ext-enable xdebug \
+    && docker-php-ext-install gd ldap
+
+# [ ADVANCED ]
+RUN /bin/sh -c cd /tmp/ && curl -sSL -O https://www.bytereef.org/software/mpdecimal/releases/mpdecimal-2.5.1.tar.gz \
+    && tar -xzf mpdecimal-2.5.1.tar.gz \
+    && cd mpdecimal-2.5.1 && ./configure && make && make install
+
+RUN pecl install xdebug decimal protobuf grpc \
+    && docker-php-ext-enable xdebug decimal protobuf grpc \
     && echo "zend_extension=$(find /usr/local/lib/php/extensions/ -name xdebug.so)" > /usr/local/etc/php/conf.d/docker-php-ext-xdebug.ini \
-    && echo "xdebug.remote_enable=on" >> /usr/local/etc/php/conf.d/docker-php-ext-xdebug.ini \
-    && echo "xdebug.remote_autostart=on" >> /usr/local/etc/php/conf.d/docker-php-ext-xdebug.ini \
-    && echo "xdebug.remote_host=host.docker.internal" >> /usr/local/etc/php/conf.d/docker-php-ext-xdebug.ini
+    && echo "xdebug.mode=debug" >> /usr/local/etc/php/conf.d/docker-php-ext-xdebug.ini \
+    && echo "xdebug.client_host=host.docker.internal" >> /usr/local/etc/php/conf.d/docker-php-ext-xdebug.ini
 
 RUN curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer \
-    && composer self-update \
-    && curl -sS https://get.symfony.com/cli/installer | bash \
-    && export PATH="$HOME/.symfony/bin:$PATH"
+    && composer self-update
+
+RUN curl -sS https://get.symfony.com/cli/installer -o /usr/local/bin/symfony \
+    && chmod a+x /usr/local/bin/symfony \
+    && symfony \
+    && mv /root/.symfony/bin/symfony /usr/local/bin/symfony
+
+RUN git config --global user.name "$USER_NAME" \
+    && git config --global user.email "$USER_EMAIL"

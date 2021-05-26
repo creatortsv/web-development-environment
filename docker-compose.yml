@@ -71,6 +71,7 @@ services:
                 PHP_VERSION: ${PHP_VERSION}
 
         volumes:
+            - ~/.ssh/:/root/.ssh/
             - ~/PHPProjects/:/var/web/php/
             - ~/LaravelProjects/:/var/web/laravel/
             - ~/SymfonyProjects/:/var/web/symfony/
