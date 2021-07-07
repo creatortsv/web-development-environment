@@ -1,7 +1,12 @@
 ARG PHP_VERSION
+ARG PHP_DIST
 ARG USER_NAME
 ARG USER_EMAIL
-FROM php:$PHP_VERSION-fpm
+ARG GOLANG_VERSION
+
+FROM golang:$GOLANG_VERSION-extended as golang
+
+FROM php:$PHP_VERSION-$PHP_DIST
 
 RUN apt-get update -y && apt-get install -y \
     libldap2-dev \
@@ -12,8 +17,6 @@ RUN apt-get update -y && apt-get install -y \
     libfreetype6-dev \
     locales \
     libzip-dev \
-    zip \
-    git \
     jpegoptim \
     optipng \
     pngquant \
@@ -26,19 +29,32 @@ RUN apt-get update -y && apt-get install -y \
     && docker-php-ext-install sockets pdo pdo_pgsql pgsql mbstring zip exif pcntl \
     && docker-php-ext-configure gd --with-freetype --with-jpeg \
     && docker-php-ext-configure ldap --with-libdir=lib/x86_64-linux-gnu/ \
-    && docker-php-ext-install gd ldap \
-    && pecl install xdebug decimal \
-    && docker-php-ext-enable xdebug decimal \
+    && docker-php-ext-install gd ldap
+
+# [ ADVANCED ]
+RUN /bin/sh -c cd /tmp/ && curl -sSL -O https://www.bytereef.org/software/mpdecimal/releases/mpdecimal-2.5.1.tar.gz \
+    && tar -xzf mpdecimal-2.5.1.tar.gz \
+    && cd mpdecimal-2.5.1 && ./configure \
+    && make \
+    && make install
+
+RUN pecl install apcu redis xdebug decimal protobuf grpc rdkafka \
+    && docker-php-ext-enable apcu redis xdebug decimal protobuf grpc rdkafka \
     && echo "zend_extension=$(find /usr/local/lib/php/extensions/ -name xdebug.so)" > /usr/local/etc/php/conf.d/docker-php-ext-xdebug.ini \
     && echo "xdebug.mode=debug" >> /usr/local/etc/php/conf.d/docker-php-ext-xdebug.ini \
     && echo "xdebug.client_host=host.docker.internal" >> /usr/local/etc/php/conf.d/docker-php-ext-xdebug.ini
 
-RUN curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
-RUN composer self-update
+RUN curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer \
+    && composer self-update
+
 RUN curl -sS https://get.symfony.com/cli/installer -o /usr/local/bin/symfony \
     && chmod a+x /usr/local/bin/symfony \
     && symfony \
     && mv /root/.symfony/bin/symfony /usr/local/bin/symfony
 
 RUN git config --global user.name "$USER_NAME" \
-    && git config --global user.email "$USER_EMAIL" 
+    && git config --global user.email "$USER_EMAIL"
+
+COPY --from=golang /spiral/spiral /usr/local/bin/spiral
+COPY --from=golang /php-grpc/cmd/protoc-gen-php-grpc/protoc-gen-php-grpc /usr/local/bin/protoc-gen-php-grpc
+COPY --from=golang /grpc/grpc_php_plugin /usr/local/bin/grpc_php_plugin

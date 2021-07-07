@@ -1,0 +1,6 @@
+#!/bin/bash
+set -a # automatically export all variables
+source ~/DockerProjects/web-development-environment/.env
+set +a
+PROJECT_DIR="$(basename $(dirname $(pwd)))/$(basename $(pwd))"
+docker exec -i -w "$PHP_WORKING_DIR/$PROJECT_DIR" php-"$PHP_VERSION" spiral "$@"

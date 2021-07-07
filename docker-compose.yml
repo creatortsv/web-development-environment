@@ -2,18 +2,40 @@ version: "3.7"
 
 services:
 
-    db:
-        image: "postgres:${POSTGRES_VERSION}"
+    golang:
+        image: "golang:${GOLANG_VERSION}-extended"
         restart: unless-stopped
         env_file: ./.env
-        container_name: "postgres-${POSTGRES_VERSION}"
+        container_name: "golang-${GOLANG_VERSION}"
         tty: true
+
+        build:
+            context: ./golang
+            dockerfile: Dockerfile
+            args:
+                GOLANG_VERSION: ${GOLANG_VERSION}
+                GOLANG_DIST: ${GOLANG_DIST}
+
+        volumes:
+            - ~/GoProjects/:/var/go/
+
+    db:
+        image: "postgres:${POSTGRES_VERSION}"
+        container_name: "postgres-${POSTGRES_VERSION}"
+        restart: unless-stopped
+        env_file: ./.env
+        tty: true
+
+        build:
+            context: ./postgres
+            dockerfile: Dockerfile
+            args:
+                POSTGRES_VERSION: ${POSTGRES_VERSION}
 
         environment:
             POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
 
         volumes:
-            # - ./postgres/entrypoint.sh:/docker-entrypoint-initdb.d/entrypoint.sh
             - type: volume
               source: postgres_data
               target: /var/lib/postgresql/data
@@ -36,10 +58,10 @@ services:
         env_file: ./.env
         working_dir: /home/node
 
-        volumes:
-            - ~/ReactProjects/:/home/node/react/
-            - ~/JSProjects/:/home/node/js/
-            - ~/LaravelProjects/:/home/node/laravel/
+        # volumes:
+            # - ~/ReactProjects/:/home/node/react/
+            # - ~/JSProjects/:/home/node/js/
+            # - ~/LaravelProjects/:/home/node/laravel/
 
         environment:
             NODE_ENV: ${NODE_ENV}
@@ -55,48 +77,56 @@ services:
             - php
 
     php:
-        image: "php-${PHP_VERSION}-extended"
+        image: "php:${PHP_VERSION}-extended"
         container_name: "php-${PHP_VERSION}"
         restart: unless-stopped
         user: "root"
         stdin_open: true
         tty: true
         env_file: ./.env
-        working_dir: /var/web
+        working_dir: /var/www
+
+        environment:
+            POOL_NUMWORKERS: ${POOL_NUMWORKERS}
+            GRPC_PORT: ${GRPC_PORT}
 
         build:
             context: ./php
             dockerfile: Dockerfile-${PHP_VERSION}
             args:
-                PHP_VERSION: ${PHP_VERSION}
+                - PHP_VERSION
+                - PHP_DIST
+                - USER_EMAIL
+                - USER_NAME
+                - GOLANG_VERSION
+                - GRPC_VERSION
+                - GRPC_PROTOBUF_VERSION
+                - GRPC_PROTOC_GEN_PHP_GRPC_VERSION
 
         volumes:
-            - ~/.ssh/:/root/.ssh/
-            - ~/PHPProjects/:/var/web/php/
-            - ~/LaravelProjects/:/var/web/laravel/
-            - ~/SymfonyProjects/:/var/web/symfony/
+          # - ~/.ssh/:/root/.ssh/
+            - "~/PHPProjects/:${PHP_WORKING_DIR}/PHPProjects/"
+            - "~/LaravelProjects/:${PHP_WORKING_DIR}/LaravelProjects/"
+            - "~/SymfonyProjects/:${PHP_WORKING_DIR}/SymfonyProjects/"
 
         ports:
             - "${PHP_PORT}:8000"
+            - "${GRPC_PORT}:50051"
+            - "9090:9090"
 
         depends_on:
             - db
-            - rabbit
+            - golang
+            # - rabbit
 
         networks:
             - env-network
 
     rabbit:
-        image: "rabbitmq:${RABBITMQ_VERSION}"
+        image: "rabbitmq:${RABBITMQ_VERSION}-extended"
         container_name: "rabbitmq-${RABBITMQ_VERSION}"
         restart: unless-stopped
         env_file: ./.env
-        volumes:
-            - type: volume
-              source: rabbitmq_data
-              target: /var/lib/rabbitmq/
-              volume:
-                nocopy: true
 
         environment:
             RABBITMQ_ERLANG_COOKIE: ${RABBITMQ_ERLANG_COOKIE}
@@ -105,7 +135,7 @@ services:
 
         ports:
             - "${RABBITMQ_PORT}:5672"
-            - "${RABBITMQ_PORT_MANAGMENT}:15672"
+            - "${RABBITMQ_PORT_MANAGEMENT}:15672"
 
         networks:
             - env-network
