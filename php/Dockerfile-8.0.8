@@ -1,60 +1,102 @@
 ARG PHP_VERSION
 ARG PHP_DIST
-ARG USER_NAME
-ARG USER_EMAIL
 ARG GOLANG_VERSION
 
-FROM golang:$GOLANG_VERSION-extended as golang
+FROM golang:$GOLANG_VERSION-extended AS golang
 
 FROM php:$PHP_VERSION-$PHP_DIST
 
-RUN apt-get update -y && apt-get install -y \
-    libldap2-dev \
-    libpng-dev \
-    libonig-dev \
-    libpq-dev \
-    libjpeg62-turbo-dev \
-    libfreetype6-dev \
+ARG BUILD_DEPENDENCIES="${PHPIZE_DEPS} zip unzip zlib1g-dev libtool automake curl cmake"
+
+# [ INSTALL PHP DEPENDENCIES ]
+RUN apt-get update && apt-get -y install ${BUILD_DEPENDENCIES} \
+    libldap2-dev libpng-dev libonig-dev libpq-dev libjpeg62-turbo-dev libfreetype6-dev libzip-dev \
     locales \
-    libzip-dev \
     jpegoptim \
     optipng \
     pngquant \
-    gifsicle \
-    vim \
-    unzip \
-    curl \
+    git \
     && apt-get clean \
-    && rm -rf /var/lib/apt/lists/* \
-    && docker-php-ext-install sockets pdo pdo_pgsql pgsql mbstring zip exif pcntl \
+    && rm -rf /var/lib/apt/lists/*
+
+# [ INSTALL DOCKER PHP EXTENSIONS ]
+RUN docker-php-ext-install sockets pdo pdo_pgsql pgsql mbstring zip exif pcntl \
     && docker-php-ext-configure gd --with-freetype --with-jpeg \
     && docker-php-ext-configure ldap --with-libdir=lib/x86_64-linux-gnu/ \
     && docker-php-ext-install gd ldap
 
-# [ ADVANCED ]
+# [ INSTALL MPDECIMAL ]
 RUN /bin/sh -c cd /tmp/ && curl -sSL -O https://www.bytereef.org/software/mpdecimal/releases/mpdecimal-2.5.1.tar.gz \
     && tar -xzf mpdecimal-2.5.1.tar.gz \
     && cd mpdecimal-2.5.1 && ./configure \
     && make \
     && make install
 
-RUN pecl install apcu redis xdebug decimal protobuf grpc rdkafka \
-    && docker-php-ext-enable apcu redis xdebug decimal protobuf grpc rdkafka \
+# [ INSTALL PECL EXTENSIONS ]
+RUN pecl install apcu redis xdebug decimal grpc \
+    && docker-php-ext-enable apcu redis xdebug decimal grpc \
     && echo "zend_extension=$(find /usr/local/lib/php/extensions/ -name xdebug.so)" > /usr/local/etc/php/conf.d/docker-php-ext-xdebug.ini \
     && echo "xdebug.mode=debug" >> /usr/local/etc/php/conf.d/docker-php-ext-xdebug.ini \
     && echo "xdebug.client_host=host.docker.internal" >> /usr/local/etc/php/conf.d/docker-php-ext-xdebug.ini
 
+# [ INSTALL PECL PROTOBUF EXTENSION ]
+# RUN pecl install protobuf && docker-php-ext-enable protobuf
+# The best way to do that is install via composer require google/protobuf in your project
+
+# [ INSTALL COMPOSER ]
 RUN curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer \
     && composer self-update
 
+# [ INSTALL SYMFONY CLI ]
 RUN curl -sS https://get.symfony.com/cli/installer -o /usr/local/bin/symfony \
     && chmod a+x /usr/local/bin/symfony \
     && symfony \
     && mv /root/.symfony/bin/symfony /usr/local/bin/symfony
 
+# [ SET GLOBAL GIT CONFIG ]
+ARG USER_NAME
+ARG USER_EMAIL
 RUN git config --global user.name "$USER_NAME" \
     && git config --global user.email "$USER_EMAIL"
 
+# [ GET PRE_BUILD BINARY PROTOC ]
+ARG GRPC_PROTOBUF_VERSION
+RUN mkdir -p /tmp/protoc \
+    && echo "Get pre built binary of the protoc [version: ${GRPC_PROTOBUF_VERSION}]" \
+    && curl -L https://github.com/protocolbuffers/protobuf/releases/download/v${GRPC_PROTOBUF_VERSION}/protoc-${GRPC_PROTOBUF_VERSION}-linux-x86_64.zip > /tmp/protoc/protoc.zip \
+    && cd /tmp/protoc \
+    && echo "$(ls -la)" \
+    && unzip protoc.zip \
+    && cp /tmp/protoc/bin/protoc /usr/local/bin \
+    && cp -a /tmp/protoc/include/. /usr/local/include/ \
+    && cd /tmp \
+    && rm -r /tmp/protoc
+
+# [ GET PRE_BUILD BINARY protoc-gen-php-grpc ]
+ARG GRPC_PROTOC_GEN_PHP_GRPC_VERSION
+RUN mkdir -p /tmp/protoc-gen-php-grpc \
+    && echo "Get pre built binary of the protoc-gen-php-grpc [version: ${GRPC_PROTOC_GEN_PHP_GRPC_VERSION}]" \
+    && curl -L https://github.com/spiral/php-grpc/releases/download/v${GRPC_PROTOC_GEN_PHP_GRPC_VERSION}/protoc-gen-php-grpc-${GRPC_PROTOC_GEN_PHP_GRPC_VERSION}-linux-amd64.tar.gz > /tmp/protoc-gen-php-grpc/protoc-gen-php-grpc.tar.gz \
+    && cd /tmp/protoc-gen-php-grpc \
+    && tar -xzf protoc-gen-php-grpc.tar.gz \
+    && mv /tmp/protoc-gen-php-grpc/protoc-gen-php-grpc-${GRPC_PROTOC_GEN_PHP_GRPC_VERSION}-linux-amd64/protoc-gen-php-grpc /bin/protoc-gen-php-grpc \
+    && cd /tmp \
+    && rm -r /tmp/protoc-gen-php-grpc
+
+# [ BUILD grpc_php_plugin ]
+ARG GRPC_VERSION
+RUN cd / \
+    && echo "Build grpc_php_plugin [gRPC version: ${GRPC_VERSION}]" \
+    && git clone -b v${GRPC_VERSION} https://github.com/grpc/grpc \
+    && cd grpc \
+    && git submodule update --init \
+    && mkdir -p cmake/build \
+    && cd cmake/build \
+    && cmake ../.. \
+    && make grpc_php_plugin \
+    && mv /grpc/cmake/build/grpc_php_plugin /bin/grpc_php_plugin \
+    && rm -r /grpc
+
 COPY --from=golang /spiral/spiral /usr/local/bin/spiral
-COPY --from=golang /php-grpc/cmd/protoc-gen-php-grpc/protoc-gen-php-grpc /usr/local/bin/protoc-gen-php-grpc
-COPY --from=golang /grpc/grpc_php_plugin /usr/local/bin/grpc_php_plugin
+
+RUN apt-get remove -y ${BUILD_DEPENDENCIES}
